@@ -44,7 +44,9 @@
         var analog = [];
         var outputPin;
         var activePins = [];
-
+        var segledbuf = [];
+        for (i = 0; i < 14; i++)
+            segledbuf[i] = false;
         // toggle pin on/off or blink
         function pinChange(data) {
             var b = require('bonescript');
@@ -65,7 +67,7 @@
                 };
             }
             if (data.type === 'usr leds' || data.subType != "input" &&
-                data.subType != "pwm") {
+                data.subType != "pwm" && data.type != '7-seg leds') {
                 b.pinMode(data.id, b.OUTPUT);
                 if (data.power === "on") {
                     if (data.freq !== 0) {
@@ -94,7 +96,16 @@
                         b.analogWrite('P9_16', 0);
                     }
                 }
+            } else if (data.type === "7-seg leds") {
+                data.state = data.power == 'on' ? true : false;
+                for (var x in SEGtext) {
+                    if (data.id == SEGtext[x])
+                        segledbuf[x] = data.state
+                }
+                console.log(segledbuf);
+                //todo segled
             }
+
         }
 
         // turn leds off once html loaded
@@ -212,7 +223,7 @@
             x: (rect.x + 25 + btnWidth + 100),
             y: rect.y + 20
         };
-        var SEGtext = ['LDA1', 'LDA2', 'LDB1', 'LDB2', 'LDC1', 'LDC2', 'LDD1', 'LDD2', 'LDE1', 'LDE2', 'LDF1', 'LDF2', 'LDG1', 'LDG2'];
+        var SEGtext = ['LDA1', 'LDB1', 'LDC1', 'LDD1', 'LDE1', 'LDF1', 'LDG1', 'LDA2', 'LDB2', 'LDC2', 'LDD2', 'LDE2', 'LDF2', 'LDG2'];
         var USRcontext = [ctxLED0, ctxLED1, ctxLED2, ctxLED3];
         var USRcanvas = [canvasLED0, canvasLED1, canvasLED2, canvasLED3];
         var pin = [];
@@ -415,8 +426,8 @@
         //initialize coordinate positions for LEDs
         var USRX = BBposX + 78.5;
         var USRY = [95.5, 116, 137.5, 158.5];
-        segPosx = [106.5, 183.5, 127.5, 203.5, 127.5, 203.5, 106.5, 183.5, 88, 164, 88, 164, 106.5, 183.5];
-        segPosy = [232, 232, 244.5, 244.5, 268.5, 268.5, 280.5, 280.5, 268.5, 268.5, 244.5, 244.5, 255.5, 255.5];
+        segPosx = [106.5, 127.5, 127.5, 106.5, 88, 88, 106.5, 183.5, 203.5, 203.5, 183.5, 164, 164, 183.5];
+        segPosy = [232, 244.5, 268.5, 280.5, 268.5, 244.5, 255.5, 232, 244.5, 268.5, 280.5, 268.5, 244.5, 255.5];
         for (var i = 0; i < 4; i++) {
             USRX[3 - i] += BBposY;
         };
@@ -494,7 +505,7 @@
                     if (i == 77)
                         pin[i] = new createRGB(BBposX + 128, BBposY + 303);
                     else
-                        pin[i] = new createSEG(segPosx[i - 78], segPosy[i - 78], SEGtext[i - 78]);
+                        pin[i] = new createSEG(segPosx[i - 78], segPosy[i - 78], SEGtext[i - 78], i);
                 }
             } else {
                 pin[i] = new createPin(pinPosX[i], pinPosY[i], matrix[j], "Shared 12C Bus", i);
@@ -1160,6 +1171,15 @@
                     btn[len - 1].offColor = potBTN.offColor;
                     drawWireAnalogPin(pin[btn[len - 1].pinNum], len - 1);
                     on(btn[len - 1]);
+                } else if (btnType.text === "7-seg leds") {
+                    newPin = 'active';
+                    currentPin = btn[len - 1].pinNum;
+                    pin[btn[len - 1].pinNum].color = potColor[0];
+                    potColor.splice(0, 1);
+                    btn[len - 1].color = potBTN.color;
+                    btn[len - 1].offColor = potBTN.offColor;
+                    drawWireAnalogPin(pin[btn[len - 1].pinNum], len - 1);
+                    on(btn[len - 1]);
                 } else if (btnType.text === "rgb led") {
                     pin[btn[len - 1].pinNum].color = pwmColor[0];
                     pwmColor.splice(0, 1);
@@ -1745,7 +1765,7 @@
             return;
         };
 
-        function createSEG(x, y, id) {
+        function createSEG(x, y, id, index) {
             this.x = x;
             this.y = y;
             this.w = 18;
@@ -1753,7 +1773,7 @@
             this.endX = (this.x + 18);
             this.endY = (this.y + 11.2);
             this.power = 'on';
-            this.number = id;
+            this.num = index;
             this.freq = 0;
             this.select = "off";
             this.volt = [];
@@ -2312,23 +2332,25 @@
             var pinlen = voltagePin.length;
             var spliced = 'false';
             for (var i = 0; i < pinlen; i++) {
-                pin[voltagePin[i]].ctxGraph.clearRect(0, 0, pin[voltagePin[i]].canvasGraph.width,
-                    pin[voltagePin[i]].canvasGraph.height);
-                pin[voltagePin[i]].time = timeValues;
-                if (timeCount <= 375 && (timeValues.length > pin[voltagePin[i]].volt.length) && status === "on") {
-                    pin[voltagePin[i]].time = timeValues.slice(timeValues.length - pin[voltagePin[i]].volt.length);
-                } else if (timeCount <= 375 && (timeValues.length < pin[voltagePin[i]].volt.length) && status === "on") {
-                    pin[voltagePin[i]].volt = pin[voltagePin[i]].volt.slice(pin[voltagePin[i]].volt.length - timeValues.length);
-                } else if (timeCount > 375 && status === "on") {
-                    if (spliced === "false") {
-                        timeValues.splice(0, 1);
-                        spliced = "true";
-                    }
-                    if (pin[voltagePin[i]].volt.length < timeValues.length) {
+                if (pin[voltagePin[i]].type != '7-seg leds') {
+                    pin[voltagePin[i]].ctxGraph.clearRect(0, 0, pin[voltagePin[i]].canvasGraph.width,
+                        pin[voltagePin[i]].canvasGraph.height);
+                    pin[voltagePin[i]].time = timeValues;
+                    if (timeCount <= 375 && (timeValues.length > pin[voltagePin[i]].volt.length) && status === "on") {
                         pin[voltagePin[i]].time = timeValues.slice(timeValues.length - pin[voltagePin[i]].volt.length);
-                    } else {
-                        pin[voltagePin[i]].volt.splice(0, 1);
-                        pin[voltagePin[i]].time = timeValues;
+                    } else if (timeCount <= 375 && (timeValues.length < pin[voltagePin[i]].volt.length) && status === "on") {
+                        pin[voltagePin[i]].volt = pin[voltagePin[i]].volt.slice(pin[voltagePin[i]].volt.length - timeValues.length);
+                    } else if (timeCount > 375 && status === "on") {
+                        if (spliced === "false") {
+                            timeValues.splice(0, 1);
+                            spliced = "true";
+                        }
+                        if (pin[voltagePin[i]].volt.length < timeValues.length) {
+                            pin[voltagePin[i]].time = timeValues.slice(timeValues.length - pin[voltagePin[i]].volt.length);
+                        } else {
+                            pin[voltagePin[i]].volt.splice(0, 1);
+                            pin[voltagePin[i]].time = timeValues;
+                        }
                     }
                 }
             }
